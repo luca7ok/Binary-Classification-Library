@@ -8,11 +8,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CsvReader {
+
     public static List<Instance<Double, String>> loadFromCsv(String filePath, int labelIndex) {
         List<Instance<Double, String>> dataset = new ArrayList<>();
 
         try (BufferedReader bufferedReader = new BufferedReader(new FileReader(filePath))) {
+            bufferedReader.readLine();
             String line = bufferedReader.readLine();
+
             while (line != null) {
                 String[] tokens = line.split(",");
                 List<Double> features = new ArrayList<>();
@@ -41,5 +44,26 @@ public class CsvReader {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static List<String> readHeaders(String filePath, int labelIndex) {
+        try (BufferedReader bufferedReader = new BufferedReader(new FileReader(filePath))) {
+            String line = bufferedReader.readLine();
+            List<String> headers = new ArrayList<>();
+            
+            if (line != null) {
+                String[] tokens = line.trim().split(",");
+                for (int i = 0; i < tokens.length; i++) {
+                    String header = tokens[i].trim().replace("\"", "").replace(" ", "_");
+                    if(i != labelIndex){
+                        headers.add(header);
+                    }
+                }
+                return headers;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return new ArrayList<>();
     }
 }
