@@ -9,17 +9,18 @@ public class Precision implements EvaluationMeasure<Double, Double> {
     public double evaluate(List<Instance<Double, Double>> instances, List<Double> predictions) {
         int truePositives = 0;
         int falsePositives = 0;
+        double positiveClass = 1.0;
 
         for (int i = 0; i < instances.size(); i++) {
             Double actual = instances.get(i).getOutput();
             Double predicted = predictions.get(i);
 
-            if (actual.equals(1.0)) {
-                if (predicted.equals(1.0)) {
+            if (actual.equals(positiveClass)) {
+                if (predicted.equals(positiveClass)) {
                     truePositives++;
                 }
             } else {
-                if (predicted.equals(1.0)) {
+                if (predicted.equals(positiveClass)) {
                     falsePositives++;
                 }
             }
