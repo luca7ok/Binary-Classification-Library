@@ -13,7 +13,6 @@ public class GaussianNaiveBayes implements Model<Double, Double> {
     private Map<Double, Double> classPriors = new HashMap<>();
     private List<Double> classes;
 
-
     @Override
     public void train(List<Instance<Double, Double>> instances) {
         Map<Double, List<Instance<Double, Double>>> separated = new HashMap<>();
@@ -39,7 +38,7 @@ public class GaussianNaiveBayes implements Model<Double, Double> {
                 }
                 mean /= classRows.size();
 
-                double variance = 0;
+                double variance = 1e-9;
                 for (Instance<Double, Double> instance : classRows) {
                     variance += Math.pow(instance.getInput().get(i) - mean, 2);
                 }
