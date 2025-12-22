@@ -5,12 +5,6 @@ import com.domain.Instance;
 import java.util.List;
 
 public class Recall implements EvaluationMeasure<Double, Double> {
-    private final Double positiveClass;
-
-    public Recall(Double positiveClass) {
-        this.positiveClass = positiveClass;
-    }
-
     @Override
     public double evaluate(List<Instance<Double, Double>> instances, List<Double> predictions) {
         int truePositives = 0;
@@ -20,8 +14,8 @@ public class Recall implements EvaluationMeasure<Double, Double> {
             Double actual = instances.get(i).getOutput();
             Double predicted = predictions.get(i);
 
-            if (actual.equals(positiveClass)) {
-                if (predicted.equals(positiveClass)) {
+            if (actual.equals(1.0)) {
+                if (predicted.equals(1.0)) {
                     truePositives++;
                 } else {
                     falseNegatives++;
