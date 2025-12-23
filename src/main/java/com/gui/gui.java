@@ -1,9 +1,11 @@
 package com.gui;
 
+import com.domain.DatasetEntry;
 import com.domain.Instance;
 import com.evaluation.*;
 import com.models.GaussianNaiveBayes;
 import com.models.Model;
+import com.utils.ConfigLoader;
 import com.utils.CsvReader;
 import com.utils.LabelEncoder;
 import javafx.application.Application;
@@ -17,23 +19,23 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import javafx.stage.FileChooser;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public class gui extends Application {
     private TableView<Instance<Double, Double>> tableView;
     private Slider splitSlider;
     private List<Instance<Double, Double>> processedData;
-    private ComboBox<String> classifierSelection;
+    private ComboBox<String> classifierDropdown;
     private VBox visualResultsContainer;
     private TextArea results;
     private Label placeholder;
+    private ComboBox<DatasetEntry> datasetDropdown;
 
     @Override
     public void start(Stage stage) {
@@ -81,48 +83,18 @@ public class gui extends Application {
         vBox.setMinWidth(300);
         vBox.setAlignment(Pos.TOP_LEFT);
 
-        Label labelIndex = createLabel("Label Index (0-based)");
+        Label selectDataLabel = createLabel("Select Dataset:");
 
-        TextField labelIndexTextField = createTextField("Set label index in dataset");
-        labelIndexTextField.setText("1");
+        datasetDropdown = new ComboBox<>();
+        datasetDropdown.setMaxWidth(Double.MAX_VALUE);
+        datasetDropdown.setStyle("-fx-base: #4C566A; -fx-text-fill: white; -fx-font-size: 14");
 
-        Label selectedFileLabel = createLabel("No file selected");
-        selectedFileLabel.setStyle("-fx-text-fill: #D8DEE9; -fx-font-style: italic");
-        selectedFileLabel.setWrapText(true);
+        List<DatasetEntry> configs = ConfigLoader.loadConfig();
+        datasetDropdown.getItems().addAll(configs);
 
-        Button chooseDatasetButton = createButton("Choose CSV Dataset");
-
-        chooseDatasetButton.setOnAction((event) -> {
-            FileChooser fileChooser = new FileChooser();
-            fileChooser.setTitle("Open CSV Dataset");
-            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV Files", "*.csv"));
-
-            String currentDir = System.getProperty("user.dir");
-            File resourceDir = new File(currentDir, "src/main/resources");
-            fileChooser.setInitialDirectory(resourceDir);
-
-            File file = fileChooser.showOpenDialog(stage);
-            if (file != null) {
-                try {
-                    clearResults();
-
-                    int index = Integer.parseInt(labelIndexTextField.getText().trim());
-                    List<Instance<Double, String>> rawData = CsvReader.loadFromCsv(file.getAbsolutePath(), index);
-                    processedData = LabelEncoder.encode(rawData);
-                    List<String> headers = CsvReader.readHeaders(file.getAbsolutePath(), index);
-
-                    selectedFileLabel.setText("Selected: " + file.getName());
-
-                    updateTable(processedData, headers);
-                    tableView.setItems(FXCollections.observableArrayList(processedData));
-
-                } catch (NumberFormatException e) {
-                    showAlert("Please enter a valid integer for label index");
-                } catch (Exception e) {
-                    showAlert(e.getMessage());
-                }
-            }
-        });
+        Button loadButton = createButton("Load Dataset");
+        loadButton.setOnAction(e -> loadSelectedDataset());
+        
 
         Label classifierLabel = createLabel("Classifier model:");
         VBox.setMargin(classifierLabel, new Insets(40, 0, 0, 0));
@@ -131,11 +103,11 @@ public class gui extends Application {
         VBox.setMargin(hyperparametersLabel, new Insets(25, 0, 0, 0));
         TextField hyperparametersTextField = createTextField("Hyperparameters");
 
-        classifierSelection = new ComboBox<>();
-        classifierSelection.getItems().addAll("Naive Bayes", "Decision Tree", "Logistic Regression");
-        classifierSelection.setValue("Naive Bayes");
-        classifierSelection.setMaxWidth(Double.MAX_VALUE);
-        classifierSelection.setStyle("-fx-base: #4C566A; -fx-text-fill: white; -fx-font-size: 16");
+        classifierDropdown = new ComboBox<>();
+        classifierDropdown.getItems().addAll("Naive Bayes", "Decision Tree", "Logistic Regression");
+        classifierDropdown.setValue("Naive Bayes");
+        classifierDropdown.setMaxWidth(Double.MAX_VALUE);
+        classifierDropdown.setStyle("-fx-base: #4C566A; -fx-text-fill: white; -fx-font-size: 16");
 
         Label trainSplitLabel = createLabel("Train split: 75%");
         VBox.setMargin(trainSplitLabel, new Insets(25, 0, 0, 0));
@@ -154,9 +126,8 @@ public class gui extends Application {
         VBox.setMargin(trainButton, new Insets(25, 0, 0, 0));
         trainButton.setOnAction(event -> trainAndEvaluate());
 
-        vBox.getChildren().addAll(labelIndex, labelIndexTextField,
-                selectedFileLabel, chooseDatasetButton,
-                classifierLabel, classifierSelection,
+        vBox.getChildren().addAll(selectDataLabel, datasetDropdown, loadButton,
+                classifierLabel, classifierDropdown,
                 hyperparametersLabel, hyperparametersTextField,
                 trainSplitLabel, testSplitLabel, splitSlider,
                 trainButton);
@@ -220,13 +191,13 @@ public class gui extends Application {
             List<Instance<Double, Double>> trainSet = new ArrayList<>();
             trainSet.addAll(positives.subList(0, splitPositiveIndex));
             trainSet.addAll(negatives.subList(0, splitNegativeIndex));
-            
+
             List<Instance<Double, Double>> testSet = new ArrayList<>();
             testSet.addAll(positives.subList(splitPositiveIndex, positives.size()));
             testSet.addAll(negatives.subList(splitNegativeIndex, negatives.size()));
 
             Model<Double, Double> model = null;
-            String selectedModel = classifierSelection.getValue();
+            String selectedModel = classifierDropdown.getValue();
 
             results = new TextArea();
             results.setEditable(false);
@@ -308,6 +279,24 @@ public class gui extends Application {
             showAlert(e.getMessage());
         }
 
+    }
+
+    private void loadSelectedDataset() {
+        DatasetEntry selected = datasetDropdown.getValue();
+        try {
+            clearResults();
+            
+            String resourcePath = Objects.requireNonNull(getClass().getResource("/" + selected.path)).getPath();
+
+            List<Instance<Double, String>> rawData = CsvReader.loadFromCsv(resourcePath, selected.labelIndex);
+            processedData = LabelEncoder.encode(rawData);
+            List<String> headers = CsvReader.readHeaders(resourcePath, selected.labelIndex);
+
+            updateTable(processedData, headers);
+            tableView.setItems(FXCollections.observableArrayList(processedData));
+        } catch (Exception e) {
+            showAlert(e.getMessage());
+        }
     }
 
     private GridPane createConfusionMatrix(int truePositive, int falsePositive, int trueNegative, int falseNegative) {

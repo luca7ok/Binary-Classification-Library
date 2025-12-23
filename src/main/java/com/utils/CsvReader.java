@@ -5,12 +5,17 @@ import com.domain.Instance;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class CsvReader {
 
+    private static Map<Integer, Map<String, Double>> columnMappings = new HashMap<>();
+    
     public static List<Instance<Double, String>> loadFromCsv(String filePath, int labelIndex) {
         List<Instance<Double, String>> dataset = new ArrayList<>();
+        columnMappings.clear();
 
         try (BufferedReader bufferedReader = new BufferedReader(new FileReader(filePath))) {
             bufferedReader.readLine();
@@ -29,7 +34,8 @@ public class CsvReader {
                             double value = Double.parseDouble(tokens[i].trim());
                             features.add(value);
                         } catch (NumberFormatException e) {
-                            throw new RuntimeException("Could not parse real values");
+                            double encodedValue = encodeCategoricalValue(i, tokens[i]);
+                            features.add(encodedValue);
                         }
                     }
                 }
@@ -46,6 +52,18 @@ public class CsvReader {
         }
     }
 
+    private static double encodeCategoricalValue(int colIndex, String value) {
+        columnMappings.putIfAbsent(colIndex, new HashMap<>());
+        Map<String, Double> map = columnMappings.get(colIndex);
+
+        if (!map.containsKey(value)) {
+            double newId = map.size(); 
+            map.put(value, newId);
+        }
+
+        return map.get(value);
+    }
+    
     public static List<String> readHeaders(String filePath, int labelIndex) {
         try (BufferedReader bufferedReader = new BufferedReader(new FileReader(filePath))) {
             String line = bufferedReader.readLine();
