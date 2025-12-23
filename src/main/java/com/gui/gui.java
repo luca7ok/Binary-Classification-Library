@@ -64,12 +64,10 @@ public class gui extends Application {
             stage.centerOnScreen();
             stage.show();
 
-            Platform.runLater(() -> {
-                Node axis = splitSlider.lookup(".axis");
-                if (axis != null) {
-                    axis.setStyle("-fx-tick-label-fill: white;");
-                }
-            });
+            Node axis = splitSlider.lookup(".axis");
+            if (axis != null) {
+                axis.setStyle("-fx-tick-label-fill: white;");
+            }
 
         } catch (Exception e) {
             showAlert(e.getMessage());
@@ -139,11 +137,11 @@ public class gui extends Application {
         classifierSelection.setMaxWidth(Double.MAX_VALUE);
         classifierSelection.setStyle("-fx-base: #4C566A; -fx-text-fill: white; -fx-font-size: 16");
 
-        Label trainSplitLabel = createLabel("Train split: 80%");
+        Label trainSplitLabel = createLabel("Train split: 75%");
         VBox.setMargin(trainSplitLabel, new Insets(25, 0, 0, 0));
-        Label testSplitLabel = createLabel("Test split: 20%");
+        Label testSplitLabel = createLabel("Test split: 25%");
 
-        splitSlider = new Slider(10, 90, 80);
+        splitSlider = new Slider(10, 90, 75);
         splitSlider.setShowTickLabels(true);
         splitSlider.setShowTickMarks(true);
         splitSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -198,16 +196,34 @@ public class gui extends Application {
             showAlert("Please choose a dataset");
             return;
         }
-        
+
         try {
-            List<Instance<Double, Double>> dataCopy = new ArrayList<>(processedData);
-            Collections.shuffle(dataCopy);
+            List<Instance<Double, Double>> positives = new ArrayList<>();
+            List<Instance<Double, Double>> negatives = new ArrayList<>();
+
+            for (Instance<Double, Double> instance : processedData) {
+                if (instance.getOutput().equals(1.0)) {
+                    positives.add(instance);
+                } else {
+                    negatives.add(instance);
+                }
+            }
+
+            Collections.shuffle(positives);
+            Collections.shuffle(negatives);
 
             double splitRatio = splitSlider.getValue() / 100.0;
-            int splitIndex = (int) (dataCopy.size() * splitRatio);
 
-            List<Instance<Double, Double>> trainSet = dataCopy.subList(0, splitIndex);
-            List<Instance<Double, Double>> testSet = dataCopy.subList(splitIndex, dataCopy.size());
+            int splitPositiveIndex = (int) (positives.size() * splitRatio);
+            int splitNegativeIndex = (int) (negatives.size() * splitRatio);
+
+            List<Instance<Double, Double>> trainSet = new ArrayList<>();
+            trainSet.addAll(positives.subList(0, splitPositiveIndex));
+            trainSet.addAll(negatives.subList(0, splitNegativeIndex));
+            
+            List<Instance<Double, Double>> testSet = new ArrayList<>();
+            testSet.addAll(positives.subList(splitPositiveIndex, positives.size()));
+            testSet.addAll(negatives.subList(splitNegativeIndex, negatives.size()));
 
             Model<Double, Double> model = null;
             String selectedModel = classifierSelection.getValue();
@@ -215,7 +231,7 @@ public class gui extends Application {
             results = new TextArea();
             results.setEditable(false);
             results.setWrapText(true);
-            results.setPrefHeight(200);
+            results.setPrefHeight(150);
             results.setStyle("-fx-control-inner-background: #3B4252; -fx-text-fill: white; -fx-font-size: 18");
 
             switch (selectedModel) {
@@ -272,22 +288,21 @@ public class gui extends Application {
                     }
                 }
             }
-            
+
             int finalTruePositive = truePositive;
             int finalFalsePositive = falsePositive;
             int finalTrueNegative = trueNegative;
             int finalFalseNegative = falseNegative;
 
-            Platform.runLater(() -> {
-                visualResultsContainer.getChildren().clear();
 
-                Label matrixLabel = createLabel("Confusion Matrix");
-                matrixLabel.setAlignment(Pos.CENTER);
-                matrixLabel.setPadding(new Insets(20, 0, 10, 0));
+            visualResultsContainer.getChildren().clear();
 
-                GridPane matrixGrid = createConfusionMatrix(finalTruePositive, finalFalsePositive, finalTrueNegative, finalFalseNegative);
-                visualResultsContainer.getChildren().addAll(results, matrixLabel, matrixGrid);
-            });
+            Label matrixLabel = createLabel("Confusion Matrix");
+            matrixLabel.setAlignment(Pos.CENTER);
+            matrixLabel.setPadding(new Insets(20, 0, 10, 0));
+
+            GridPane matrixGrid = createConfusionMatrix(finalTruePositive, finalFalsePositive, finalTrueNegative, finalFalseNegative);
+            visualResultsContainer.getChildren().addAll(results, matrixGrid);
 
         } catch (Exception e) {
             showAlert(e.getMessage());
