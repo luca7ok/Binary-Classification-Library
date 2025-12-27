@@ -11,7 +11,7 @@ import java.util.Map;
 
 public class CsvReader {
 
-    private static Map<Integer, Map<String, Double>> columnMappings = new HashMap<>();
+    private static final Map<Integer, Map<String, Double>> columnMappings = new HashMap<>();
 
     public static List<Instance<Double, String>> loadFromCsv(String filePath, int labelIndex) {
         List<Instance<Double, String>> dataset = new ArrayList<>();

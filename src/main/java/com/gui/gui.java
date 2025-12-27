@@ -3,7 +3,6 @@ package com.gui;
 import com.domain.DatasetEntry;
 import com.domain.Instance;
 import com.evaluation.*;
-import com.models.DecisionTree;
 import com.models.GaussianNaiveBayes;
 import com.models.Model;
 import com.models.Perceptron;
