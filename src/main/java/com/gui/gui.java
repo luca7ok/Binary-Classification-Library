@@ -4,6 +4,7 @@ import com.domain.DatasetEntry;
 import com.domain.Instance;
 import com.evaluation.*;
 import com.models.GaussianNaiveBayes;
+import com.models.LogisticRegression;
 import com.models.Model;
 import com.models.Perceptron;
 import com.utils.ConfigLoader;
@@ -100,7 +101,7 @@ public class gui extends Application {
 
         Button loadButton = createButton("Load Dataset");
         loadButton.setOnAction(e -> loadSelectedDataset());
-        
+
         Label classifierLabel = createLabel("Classifier model:");
         VBox.setMargin(classifierLabel, new Insets(40, 0, 0, 0));
 
@@ -184,7 +185,7 @@ public class gui extends Application {
             if (processedData == null || processedData.isEmpty()) {
                 throw new RuntimeException("Please load a dataset");
             }
-            
+
             Pair<List<Instance<Double, Double>>, List<Instance<Double, Double>>> dataSplit =
                     splitData(processedData, splitSlider.getValue());
 
@@ -201,7 +202,7 @@ public class gui extends Application {
             int[] matrixStats = calculateConfusionMatrixStats(testSet, predictions);
 
             updateResults(resultsText, matrixStats);
-        
+
         } catch (Exception e) {
             showAlert(e.getMessage());
         }
@@ -228,7 +229,7 @@ public class gui extends Application {
     private void updateHyperparameters(String selectedModel) {
         hyperparametersContainer.getChildren().clear();
 
-        if ("Perceptron".equalsIgnoreCase(selectedModel)) {
+        if ("Perceptron".equalsIgnoreCase(selectedModel) || "Logistic Regression".equalsIgnoreCase(selectedModel)) {
             Label epochsLabel = createLabel("Epochs:");
             VBox.setMargin(epochsLabel, new Insets(15, 0, 0, 0));
             Label learningRateLabel = createLabel("Learning Rate:");
@@ -274,6 +275,8 @@ public class gui extends Application {
     }
 
     private Model<Double, Double> getModel(String selectedModel) {
+        int epochs;
+        double learningRate;
         switch (selectedModel) {
             case "Naive Bayes":
                 return new GaussianNaiveBayes();
@@ -285,10 +288,7 @@ public class gui extends Application {
                 if (learningRateTextField.getText().isEmpty()) {
                     throw new RuntimeException("Learning rate cannot be empty");
                 }
-
-                int epochs;
-                double learningRate;
-
+                
                 try {
                     epochs = Integer.parseInt(epochsTextField.getText().trim());
                 } catch (NumberFormatException e) {
@@ -303,10 +303,29 @@ public class gui extends Application {
                 return new Perceptron(learningRate, epochs);
 
             case "Logistic Regression":
-                throw new RuntimeException("Logistic Regression not implemented yet");
+                if (epochsTextField.getText().isEmpty()) {
+                    throw new RuntimeException("Epochs cannot be empty");
+                }
+                if (learningRateTextField.getText().isEmpty()) {
+                    throw new RuntimeException("Learning rate cannot be empty");
+                }
+
+
+                try {
+                    epochs = Integer.parseInt(epochsTextField.getText().trim());
+                } catch (NumberFormatException e) {
+                    throw new RuntimeException("Number of epochs must be an integer");
+                }
+
+                try {
+                    learningRate = Double.parseDouble(epochsTextField.getText().trim());
+                } catch (NumberFormatException e) {
+                    throw new RuntimeException("Learning rate must be a real number");
+                }
+                return new LogisticRegression(learningRate, epochs);
 
             case "Decision Tree":
-               throw new RuntimeException("Decision Tree not implemented yet");
+                throw new RuntimeException("Decision Tree not implemented yet");
         }
         return null;
     }
@@ -355,7 +374,7 @@ public class gui extends Application {
                 String.format("Recall: %.2f%%\n", recall * 100) +
                 String.format("F1 Score: %.2f%%\n", f1Score * 100);
     }
-    
+
     private void updateResults(String text, int[] matrixStats) {
         results = new TextArea();
         results.setEditable(false);

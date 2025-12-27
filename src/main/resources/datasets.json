@@ -1,13 +1,13 @@
 [
   {
-    "name": "Breast Cancer",
-    "path": "breast_cancer.csv",
-    "labelIndex": 1
-  },
-  {
     "name": "Airline Satisfaction",
     "path": "passenger_satisfaction.csv",
     "labelIndex": 24
+  },
+  {
+    "name": "Breast Cancer",
+    "path": "breast_cancer.csv",
+    "labelIndex": 1
   },
   {
     "name": "Prima Diabetes",

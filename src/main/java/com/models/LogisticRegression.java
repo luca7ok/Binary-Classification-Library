@@ -7,16 +7,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-public class Perceptron implements Model<Double, Double> {
+public class LogisticRegression implements Model<Double, Double> {
     private final List<Double> weights = new ArrayList<>();
     private double bias = 0.0;
-    private final double learningRate;
     private final int epochs;
+    private final double learningRate;
 
-    private List<Double> minValues;
-    private List<Double> maxValues;
+    private List<Double> means;
+    private List<Double> standardDeviations;
 
-    public Perceptron(double learningRate, int epochs) {
+    public LogisticRegression(double learningRate, int epochs) {
         this.learningRate = learningRate;
         this.epochs = epochs;
     }
@@ -24,7 +24,7 @@ public class Perceptron implements Model<Double, Double> {
     @Override
     public void train(List<Instance<Double, Double>> instances) {
         fitNormalizationParameters(instances);
-        List<Instance<Double, Double>> trainingData = applyMinMaxNormalization(instances);
+        List<Instance<Double, Double>> trainingData = applyZScoreNormalization(instances);
 
         int featuresCount = instances.getFirst().getInput().size();
         Random random = new Random();
@@ -54,10 +54,9 @@ public class Perceptron implements Model<Double, Double> {
 
     @Override
     public List<Double> test(List<Instance<Double, Double>> instances) {
-        List<Instance<Double, Double>> testData = applyMinMaxNormalization(instances);
-
+        List<Instance<Double, Double>> testData = applyZScoreNormalization(instances);
         return testData.stream()
-                .map(instance -> predict(instance.getInput()))
+                .map(instance -> predict(instance.getInput()) >= 0.5 ? 1.0 : 0.0)
                 .toList();
     }
 
@@ -66,30 +65,32 @@ public class Perceptron implements Model<Double, Double> {
         for (int i = 0; i < features.size(); i++) {
             sum += features.get(i) * weights.get(i);
         }
-        return sum >= 0 ? 1.0 : 0.0;
+        return 1.0 / (1.0 + Math.exp(-sum));
     }
+
 
     private void fitNormalizationParameters(List<Instance<Double, Double>> instances) {
         int featuresCount = instances.getFirst().getInput().size();
 
-        minValues = new ArrayList<>(Collections.nCopies(featuresCount, Double.MAX_VALUE));
-        maxValues = new ArrayList<>(Collections.nCopies(featuresCount, -Double.MAX_VALUE));
+        means = new ArrayList<>(Collections.nCopies(featuresCount, 0.0));
+        standardDeviations = new ArrayList<>(Collections.nCopies(featuresCount, 1e-9));
 
-        for (Instance<Double, Double> instance : instances) {
-            List<Double> features = instance.getInput();
-            for (int i = 0; i < featuresCount; i++) {
-                double value = features.get(i);
-                if (value < minValues.get(i)) {
-                    minValues.set(i, value);
-                }
-                if (value > maxValues.get(i)) {
-                    maxValues.set(i, value);
-                }
+        for (int i = 0; i < featuresCount; i++) {
+            for (Instance<Double, Double> instance : instances) {
+                double value = instance.getInput().get(i);
+                means.set(i, means.get(i) + value);
             }
+            means.set(i, means.get(i) / instances.size());
+            for (Instance<Double, Double> instance : instances) {
+                double value = instance.getInput().get(i);
+                standardDeviations.set(i, standardDeviations.get(i) + Math.pow(value - means.get(i), 2));
+            }
+            standardDeviations.set(i, standardDeviations.get(i) / instances.size());
+            standardDeviations.set(i, Math.sqrt(standardDeviations.get(i)));
         }
     }
 
-    private List<Instance<Double, Double>> applyMinMaxNormalization(List<Instance<Double, Double>> instances) {
+    private List<Instance<Double, Double>> applyZScoreNormalization(List<Instance<Double, Double>> instances) {
         List<Instance<Double, Double>> normalizedInstances = new ArrayList<>();
 
         for (Instance<Double, Double> instance : instances) {
@@ -97,11 +98,7 @@ public class Perceptron implements Model<Double, Double> {
             List<Double> normalizedFeatures = new ArrayList<>();
 
             for (int i = 0; i < features.size(); i++) {
-                if (maxValues.get(i) - minValues.get(i) == 0.0) {
-                    normalizedFeatures.add(0.0);
-                } else {
-                    normalizedFeatures.add((features.get(i) - minValues.get(i)) / (maxValues.get(i) - minValues.get(i)));
-                }
+                normalizedFeatures.add((features.get(i) - means.get(i)) / standardDeviations.get(i));
             }
             normalizedInstances.add(new Instance<>(normalizedFeatures, instance.getOutput()));
         }

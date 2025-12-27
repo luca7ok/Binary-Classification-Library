@@ -54,23 +54,21 @@ public class GaussianNaiveBayes implements Model<Double, Double> {
 
     @Override
     public List<Double> test(List<Instance<Double, Double>> instances) {
-        List<Double> predictions = new ArrayList<>();
-        for (Instance<Double, Double> instance : instances) {
-            predictions.add(predict(instance.getInput()));
-        }
-        return predictions;
+        return instances.stream()
+                .map(instance -> predict(instance.getInput()))
+                .toList();
     }
 
     private Double predict(List<Double> features) {
         Double bestClass = null;
         double maxProbability = 0;
         for (Double label : classes) {
-            double probability = classPriors.get(label);
+            double probability = Math.log(classPriors.get(label));
             List<Double> classMeans = means.get(label);
             List<Double> classVariances = variances.get(label);
 
             for (int i = 0; i < features.size(); i++) {
-                probability *= calculatePDF(features.get(i), classMeans.get(i), classVariances.get(i));
+                probability += Math.log(calculatePDF(features.get(i), classMeans.get(i), classVariances.get(i)));
             }
 
             if (bestClass == null || probability > maxProbability) {
