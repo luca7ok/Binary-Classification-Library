@@ -3,8 +3,10 @@ package com.gui;
 import com.domain.DatasetEntry;
 import com.domain.Instance;
 import com.evaluation.*;
+import com.models.DecisionTree;
 import com.models.GaussianNaiveBayes;
 import com.models.Model;
+import com.models.Perceptron;
 import com.utils.ConfigLoader;
 import com.utils.CsvReader;
 import com.utils.LabelEncoder;
@@ -21,6 +23,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
+import javafx.util.Pair;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,6 +39,9 @@ public class gui extends Application {
     private TextArea results;
     private Label placeholder;
     private ComboBox<DatasetEntry> datasetDropdown;
+    private VBox hyperparametersContainer;
+    private TextField epochsTextField;
+    private TextField learningRateTextField;
 
     @Override
     public void start(Stage stage) {
@@ -50,8 +56,8 @@ public class gui extends Application {
             stage.setWidth(bounds.getWidth() * 0.80);
             stage.setHeight(bounds.getHeight() * 0.85);
 
-            VBox leftPane = createLeftPane(stage);
-            VBox middlePane = createMiddlePane(stage);
+            VBox leftPane = createLeftPane();
+            VBox middlePane = createMiddlePane();
 
             HBox mainLayout = new HBox(20);
             mainLayout.setPadding(new Insets(20));
@@ -77,7 +83,7 @@ public class gui extends Application {
         }
     }
 
-    private VBox createLeftPane(Stage stage) {
+    private VBox createLeftPane() {
         VBox vBox = new VBox(15);
         vBox.setPrefWidth(300);
         vBox.setMinWidth(300);
@@ -91,23 +97,35 @@ public class gui extends Application {
 
         List<DatasetEntry> configs = ConfigLoader.loadConfig();
         datasetDropdown.getItems().addAll(configs);
+        datasetDropdown.setValue(configs.getFirst());
 
         Button loadButton = createButton("Load Dataset");
         loadButton.setOnAction(e -> loadSelectedDataset());
         
-
         Label classifierLabel = createLabel("Classifier model:");
         VBox.setMargin(classifierLabel, new Insets(40, 0, 0, 0));
 
-        Label hyperparametersLabel = createLabel("Hyperparameters:");
-        VBox.setMargin(hyperparametersLabel, new Insets(25, 0, 0, 0));
-        TextField hyperparametersTextField = createTextField("Hyperparameters");
-
         classifierDropdown = new ComboBox<>();
-        classifierDropdown.getItems().addAll("Naive Bayes", "Decision Tree", "Logistic Regression");
+        classifierDropdown.getItems().addAll("Naive Bayes", "Perceptron", "Logistic Regression", "Decision Tree");
         classifierDropdown.setValue("Naive Bayes");
         classifierDropdown.setMaxWidth(Double.MAX_VALUE);
         classifierDropdown.setStyle("-fx-base: #4C566A; -fx-text-fill: white; -fx-font-size: 16");
+
+        Label hyperparametersLabel = createLabel("Hyperparameters:");
+        VBox.setMargin(hyperparametersLabel, new Insets(25, 0, 0, 0));
+
+        hyperparametersContainer = new VBox(10);
+
+        epochsTextField = createTextField("Add number of epochs");
+        epochsTextField.setText("100");
+
+        learningRateTextField = createTextField("Add learning rate");
+        learningRateTextField.setText("0.01");
+
+        classifierDropdown.valueProperty().addListener((obs, oldVal, newVal) -> {
+            updateHyperparameters(newVal);
+        });
+        updateHyperparameters(classifierDropdown.getValue());
 
         Label trainSplitLabel = createLabel("Train split: 75%");
         VBox.setMargin(trainSplitLabel, new Insets(25, 0, 0, 0));
@@ -128,17 +146,17 @@ public class gui extends Application {
 
         vBox.getChildren().addAll(selectDataLabel, datasetDropdown, loadButton,
                 classifierLabel, classifierDropdown,
-                hyperparametersLabel, hyperparametersTextField,
+                hyperparametersLabel, hyperparametersContainer,
                 trainSplitLabel, testSplitLabel, splitSlider,
                 trainButton);
 
         return vBox;
     }
 
-    private VBox createMiddlePane(Stage stage) {
+    private VBox createMiddlePane() {
         VBox vBox = new VBox(15);
-        vBox.setPrefWidth(450);
-        vBox.setMinWidth(450);
+        vBox.setPrefWidth(300);
+        vBox.setMinWidth(300);
         vBox.setAlignment(Pos.TOP_CENTER);
         vBox.setPadding(new Insets(0, 10, 0, 10));
 
@@ -163,129 +181,38 @@ public class gui extends Application {
     }
 
     private void trainAndEvaluate() {
-        if (processedData == null || processedData.isEmpty()) {
-            showAlert("Please choose a dataset");
-            return;
-        }
-
         try {
-            List<Instance<Double, Double>> positives = new ArrayList<>();
-            List<Instance<Double, Double>> negatives = new ArrayList<>();
-
-            for (Instance<Double, Double> instance : processedData) {
-                if (instance.getOutput().equals(1.0)) {
-                    positives.add(instance);
-                } else {
-                    negatives.add(instance);
-                }
+            if (processedData == null || processedData.isEmpty()) {
+                throw new RuntimeException("Please load a dataset");
             }
+            
+            Pair<List<Instance<Double, Double>>, List<Instance<Double, Double>>> dataSplit =
+                    splitData(processedData, splitSlider.getValue());
 
-            Collections.shuffle(positives);
-            Collections.shuffle(negatives);
+            List<Instance<Double, Double>> trainSet = dataSplit.getKey();
+            List<Instance<Double, Double>> testSet = dataSplit.getValue();
 
-            double splitRatio = splitSlider.getValue() / 100.0;
-
-            int splitPositiveIndex = (int) (positives.size() * splitRatio);
-            int splitNegativeIndex = (int) (negatives.size() * splitRatio);
-
-            List<Instance<Double, Double>> trainSet = new ArrayList<>();
-            trainSet.addAll(positives.subList(0, splitPositiveIndex));
-            trainSet.addAll(negatives.subList(0, splitNegativeIndex));
-
-            List<Instance<Double, Double>> testSet = new ArrayList<>();
-            testSet.addAll(positives.subList(splitPositiveIndex, positives.size()));
-            testSet.addAll(negatives.subList(splitNegativeIndex, negatives.size()));
-
-            Model<Double, Double> model = null;
             String selectedModel = classifierDropdown.getValue();
+            Model<Double, Double> model = getModel(selectedModel);
 
-            results = new TextArea();
-            results.setEditable(false);
-            results.setWrapText(true);
-            results.setPrefHeight(150);
-            results.setStyle("-fx-control-inner-background: #3B4252; -fx-text-fill: white; -fx-font-size: 18");
-
-            switch (selectedModel) {
-                case "Naive Bayes":
-                    model = new GaussianNaiveBayes();
-                    break;
-                case "Decision tree":
-                    showAlert("Decision tree not implemented yet");
-                    return;
-                case "Logistic Regression":
-                    showAlert("Logistic Regression not implemented yet");
-                    return;
-            }
             model.train(trainSet);
             List<Double> predictions = model.test(testSet);
 
-            EvaluationMeasure<Double, Double> accuracyMeasure = new Accuracy();
-            EvaluationMeasure<Double, Double> precisionMeasure = new Precision();
-            EvaluationMeasure<Double, Double> recallMeasure = new Recall();
-            EvaluationMeasure<Double, Double> f1ScoreMeasure = new F1Score();
+            String resultsText = calculateResults(testSet, predictions);
+            int[] matrixStats = calculateConfusionMatrixStats(testSet, predictions);
 
-            double accuracy = accuracyMeasure.evaluate(testSet, predictions);
-            double precision = precisionMeasure.evaluate(testSet, predictions);
-            double recall = recallMeasure.evaluate(testSet, predictions);
-            double f1Score = f1ScoreMeasure.evaluate(testSet, predictions);
-
-            String resultsString = String.format("Accuracy: %.2f%%\n", accuracy * 100) +
-                    String.format("Precision: %.2f%%\n", precision * 100) +
-                    String.format("Recall: %.2f%%\n", recall * 100) +
-                    String.format("F1 Score: %.2f%%\n", f1Score * 100);
-            results.setText(resultsString);
-
-            int truePositive = 0;
-            int falsePositive = 0;
-            int trueNegative = 0;
-            int falseNegative = 0;
-            Double positiveClass = 1.0;
-
-            for (int i = 0; i < testSet.size(); i++) {
-                Double actual = testSet.get(i).getOutput();
-                Double predicted = predictions.get(i);
-
-                if (predicted.equals(positiveClass)) {
-                    if (actual.equals(positiveClass)) {
-                        truePositive++;
-                    } else {
-                        falsePositive++;
-                    }
-                } else {
-                    if (actual.equals(positiveClass)) {
-                        falseNegative++;
-                    } else {
-                        trueNegative++;
-                    }
-                }
-            }
-
-            int finalTruePositive = truePositive;
-            int finalFalsePositive = falsePositive;
-            int finalTrueNegative = trueNegative;
-            int finalFalseNegative = falseNegative;
-
-
-            visualResultsContainer.getChildren().clear();
-
-            Label matrixLabel = createLabel("Confusion Matrix");
-            matrixLabel.setAlignment(Pos.CENTER);
-            matrixLabel.setPadding(new Insets(20, 0, 10, 0));
-
-            GridPane matrixGrid = createConfusionMatrix(finalTruePositive, finalFalsePositive, finalTrueNegative, finalFalseNegative);
-            visualResultsContainer.getChildren().addAll(results, matrixGrid);
-
+            updateResults(resultsText, matrixStats);
+        
         } catch (Exception e) {
             showAlert(e.getMessage());
         }
-
     }
 
     private void loadSelectedDataset() {
         DatasetEntry selected = datasetDropdown.getValue();
         try {
             clearResults();
-            
+
             String resourcePath = Objects.requireNonNull(getClass().getResource("/" + selected.path)).getPath();
 
             List<Instance<Double, String>> rawData = CsvReader.loadFromCsv(resourcePath, selected.labelIndex);
@@ -299,6 +226,155 @@ public class gui extends Application {
         }
     }
 
+    private void updateHyperparameters(String selectedModel) {
+        hyperparametersContainer.getChildren().clear();
+
+        if ("Perceptron".equalsIgnoreCase(selectedModel)) {
+            Label epochsLabel = createLabel("Epochs:");
+            VBox.setMargin(epochsLabel, new Insets(15, 0, 0, 0));
+            Label learningRateLabel = createLabel("Learning Rate:");
+
+            hyperparametersContainer.getChildren().addAll(epochsLabel, epochsTextField, learningRateLabel, learningRateTextField);
+        } else {
+            Label noHyperparametersLabel = createLabel("No hyperparameters for " + selectedModel);
+            VBox.setMargin(noHyperparametersLabel, new Insets(15, 0, 0, 0));
+            noHyperparametersLabel.setWrapText(true);
+
+            hyperparametersContainer.getChildren().add(noHyperparametersLabel);
+        }
+    }
+
+    private Pair<List<Instance<Double, Double>>, List<Instance<Double, Double>>> splitData(List<Instance<Double, Double>> data, double sliderValue) {
+        List<Instance<Double, Double>> positives = new ArrayList<>();
+        List<Instance<Double, Double>> negatives = new ArrayList<>();
+
+        for (Instance<Double, Double> instance : data) {
+            if (instance.getOutput().equals(1.0)) {
+                positives.add(instance);
+            } else {
+                negatives.add(instance);
+            }
+        }
+
+        Collections.shuffle(positives);
+        Collections.shuffle(negatives);
+
+        double splitRatio = sliderValue / 100.0;
+        int splitPositiveIndex = (int) (positives.size() * splitRatio);
+        int splitNegativeIndex = (int) (negatives.size() * splitRatio);
+
+        List<Instance<Double, Double>> trainSet = new ArrayList<>();
+        trainSet.addAll(positives.subList(0, splitPositiveIndex));
+        trainSet.addAll(negatives.subList(0, splitNegativeIndex));
+
+        List<Instance<Double, Double>> testSet = new ArrayList<>();
+        testSet.addAll(positives.subList(splitPositiveIndex, positives.size()));
+        testSet.addAll(negatives.subList(splitNegativeIndex, negatives.size()));
+
+        return new Pair<>(trainSet, testSet);
+    }
+
+    private Model<Double, Double> getModel(String selectedModel) {
+        switch (selectedModel) {
+            case "Naive Bayes":
+                return new GaussianNaiveBayes();
+
+            case "Perceptron":
+                if (epochsTextField.getText().isEmpty()) {
+                    throw new RuntimeException("Epochs cannot be empty");
+                }
+                if (learningRateTextField.getText().isEmpty()) {
+                    throw new RuntimeException("Learning rate cannot be empty");
+                }
+
+                int epochs;
+                double learningRate;
+
+                try {
+                    epochs = Integer.parseInt(epochsTextField.getText().trim());
+                } catch (NumberFormatException e) {
+                    throw new RuntimeException("Number of epochs must be an integer");
+                }
+
+                try {
+                    learningRate = Double.parseDouble(epochsTextField.getText().trim());
+                } catch (NumberFormatException e) {
+                    throw new RuntimeException("Learning rate must be a real number");
+                }
+                return new Perceptron(learningRate, epochs);
+
+            case "Logistic Regression":
+                throw new RuntimeException("Logistic Regression not implemented yet");
+
+            case "Decision Tree":
+               throw new RuntimeException("Decision Tree not implemented yet");
+        }
+        return null;
+    }
+
+    private int[] calculateConfusionMatrixStats(List<Instance<Double, Double>> testSet, List<Double> predictions) {
+        int truePositive = 0;
+        int falsePositive = 0;
+        int trueNegative = 0;
+        int falseNegative = 0;
+        Double positiveClass = 1.0;
+
+        for (int i = 0; i < testSet.size(); i++) {
+            Double actual = testSet.get(i).getOutput();
+            Double predicted = predictions.get(i);
+
+            if (predicted.equals(positiveClass)) {
+                if (actual.equals(positiveClass)) {
+                    truePositive++;
+                } else {
+                    falsePositive++;
+                }
+            } else {
+                if (actual.equals(positiveClass)) {
+                    falseNegative++;
+                } else {
+                    trueNegative++;
+                }
+            }
+        }
+        return new int[]{truePositive, falsePositive, trueNegative, falseNegative};
+    }
+
+    private String calculateResults(List<Instance<Double, Double>> testSet, List<Double> predictions) {
+        EvaluationMeasure<Double, Double> accuracyMeasure = new Accuracy();
+        EvaluationMeasure<Double, Double> precisionMeasure = new Precision();
+        EvaluationMeasure<Double, Double> recallMeasure = new Recall();
+        EvaluationMeasure<Double, Double> f1ScoreMeasure = new F1Score();
+
+        double accuracy = accuracyMeasure.evaluate(testSet, predictions);
+        double precision = precisionMeasure.evaluate(testSet, predictions);
+        double recall = recallMeasure.evaluate(testSet, predictions);
+        double f1Score = f1ScoreMeasure.evaluate(testSet, predictions);
+
+        return String.format("Accuracy: %.2f%%\n", accuracy * 100) +
+                String.format("Precision: %.2f%%\n", precision * 100) +
+                String.format("Recall: %.2f%%\n", recall * 100) +
+                String.format("F1 Score: %.2f%%\n", f1Score * 100);
+    }
+    
+    private void updateResults(String text, int[] matrixStats) {
+        results = new TextArea();
+        results.setEditable(false);
+        results.setWrapText(true);
+        results.setPrefHeight(150);
+        results.setStyle("-fx-control-inner-background: #3B4252; -fx-text-fill: white; -fx-font-size: 18");
+        results.setText(text);
+
+        visualResultsContainer.getChildren().clear();
+
+        Label matrixLabel = createLabel("Confusion Matrix");
+        matrixLabel.setAlignment(Pos.CENTER);
+        matrixLabel.setPadding(new Insets(20, 0, 10, 0));
+
+        GridPane matrixGrid = createConfusionMatrix(matrixStats[0], matrixStats[1], matrixStats[2], matrixStats[3]);
+        visualResultsContainer.getChildren().addAll(results, matrixGrid);
+    }
+
     private GridPane createConfusionMatrix(int truePositive, int falsePositive, int trueNegative, int falseNegative) {
         GridPane grid = new GridPane();
         grid.setHgap(5);
@@ -306,10 +382,10 @@ public class gui extends Application {
         grid.setAlignment(Pos.CENTER);
         grid.setStyle("-fx-padding: 10; -fx-background-color: #434C5E; -fx-background-radius: 5;");
 
-        grid.add(createLabel("Pred. Pos."), 1, 0);
-        grid.add(createLabel("Pred. Neg."), 2, 0);
-        grid.add(createLabel("Act. Pos."), 0, 1);
-        grid.add(createLabel("Act. Neg."), 0, 2);
+        grid.add(createLabel("Pred Pos"), 1, 0);
+        grid.add(createLabel("Pred Neg"), 2, 0);
+        grid.add(createLabel("Act Pos"), 0, 1);
+        grid.add(createLabel("Act Neg"), 0, 2);
 
         grid.add(createMatrixCell(truePositive, "#C3D59C", "TP"), 1, 1);
         grid.add(createMatrixCell(falseNegative, "#D29694", "FN"), 2, 1);
