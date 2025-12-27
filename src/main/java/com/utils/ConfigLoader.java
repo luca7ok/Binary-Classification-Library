@@ -26,7 +26,7 @@ public class ConfigLoader {
                 JSONObject jsonObject = jsonArray.getJSONObject(index);
 
                 String name = jsonObject.getString("name");
-                String path = jsonObject.getString("path");
+                String path = jsonObject.getString("fileName");
                 int labelIndex = jsonObject.getInt("labelIndex");
 
                 DatasetEntry datasetEntry = new DatasetEntry(name, path, labelIndex);

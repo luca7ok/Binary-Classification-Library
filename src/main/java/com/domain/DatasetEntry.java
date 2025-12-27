@@ -2,12 +2,12 @@ package com.domain;
 
 public class DatasetEntry {
     public String name;
-    public String path;
+    public String fileName;
     public int labelIndex;
 
-    public DatasetEntry(String name, String path, int labelIndex) {
+    public DatasetEntry(String name, String fileName, int labelIndex) {
         this.name = name;
-        this.path = path;
+        this.fileName = fileName;
         this.labelIndex = labelIndex;
     }
 

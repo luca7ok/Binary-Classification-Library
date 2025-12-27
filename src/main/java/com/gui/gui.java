@@ -213,7 +213,7 @@ public class gui extends Application {
         try {
             clearResults();
 
-            String resourcePath = Objects.requireNonNull(getClass().getResource("/" + selected.path)).getPath();
+            String resourcePath = Objects.requireNonNull(getClass().getResource("/" + selected.fileName)).getPath();
 
             List<Instance<Double, String>> rawData = CsvReader.loadFromCsv(resourcePath, selected.labelIndex);
             processedData = LabelEncoder.encode(rawData);
