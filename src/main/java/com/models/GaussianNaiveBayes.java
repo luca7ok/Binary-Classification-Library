@@ -8,9 +8,9 @@ import java.util.List;
 import java.util.Map;
 
 public class GaussianNaiveBayes implements Model<Double, Double> {
-    private Map<Double, List<Double>> means = new HashMap<>();
-    private Map<Double, List<Double>> variances = new HashMap<>();
-    private Map<Double, Double> classPriors = new HashMap<>();
+    private final Map<Double, List<Double>> means = new HashMap<>();
+    private final Map<Double, List<Double>> variances = new HashMap<>();
+    private final Map<Double, Double> classPriors = new HashMap<>();
     private List<Double> classes;
 
     @Override
@@ -20,7 +20,7 @@ public class GaussianNaiveBayes implements Model<Double, Double> {
             separated.computeIfAbsent(instance.getOutput(), k -> new ArrayList<>()).add(instance);
         }
         classes = new ArrayList<>(separated.keySet());
-        int countFeatures = instances.getFirst().getInput().size();
+        int featuresCount = instances.getFirst().getInput().size();
         int totalRows = instances.size();
 
         for (Double label : classes) {
@@ -31,7 +31,7 @@ public class GaussianNaiveBayes implements Model<Double, Double> {
             List<Double> classMeans = new ArrayList<>();
             List<Double> classVariances = new ArrayList<>();
 
-            for (int i = 0; i < countFeatures; i++) {
+            for (int i = 0; i < featuresCount; i++) {
                 double mean = 0;
                 for (Instance<Double, Double> instance : classRows) {
                     mean += instance.getInput().get(i);
@@ -56,14 +56,14 @@ public class GaussianNaiveBayes implements Model<Double, Double> {
     public List<Double> test(List<Instance<Double, Double>> instances) {
         List<Double> predictions = new ArrayList<>();
         for (Instance<Double, Double> instance : instances) {
-            predictions.add(predictSingle(instance.getInput()));
+            predictions.add(predict(instance.getInput()));
         }
         return predictions;
     }
 
-    private Double predictSingle(List<Double> features) {
+    private Double predict(List<Double> features) {
         Double bestClass = null;
-        double maxProbability = -1.0;
+        double maxProbability = 0;
         for (Double label : classes) {
             double probability = classPriors.get(label);
             List<Double> classMeans = means.get(label);
