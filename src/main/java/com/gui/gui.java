@@ -25,10 +25,7 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.util.Pair;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public class gui extends Application {
     private TableView<Instance<Double, Double>> tableView;
@@ -140,15 +137,18 @@ public class gui extends Application {
             testSplitLabel.setText(String.format("Test split: %.0f%%", 100.0 - value));
         });
 
+        Button shuffleData = createButton("Shuffle Data");
+        VBox.setMargin(shuffleData, new Insets(25, 0, 0, 0));
+        shuffleData.setOnAction(event -> shuffleData(processedData));
+
         Button trainButton = createButton("Train and Evaluate");
-        VBox.setMargin(trainButton, new Insets(25, 0, 0, 0));
         trainButton.setOnAction(event -> trainAndEvaluate());
 
         vBox.getChildren().addAll(selectDataLabel, datasetDropdown, loadButton,
                 classifierLabel, classifierDropdown,
                 hyperparametersLabel, hyperparametersContainer,
                 trainSplitLabel, testSplitLabel, splitSlider,
-                trainButton);
+                shuffleData, trainButton);
 
         return vBox;
     }
@@ -221,6 +221,7 @@ public class gui extends Application {
 
             updateTable(processedData, headers);
             tableView.setItems(FXCollections.observableArrayList(processedData));
+            shuffleData(processedData);
         } catch (Exception e) {
             showAlert(e.getMessage());
         }
@@ -244,6 +245,17 @@ public class gui extends Application {
         }
     }
 
+    private void shuffleData(List<Instance<Double, Double>> data) {
+        try {
+            if (processedData == null || processedData.isEmpty()) {
+                throw new RuntimeException("Please load a dataset");
+            }
+            Collections.shuffle(data);
+        } catch (Exception e) {
+            showAlert(e.getMessage());
+        }
+    }
+
     private Pair<List<Instance<Double, Double>>, List<Instance<Double, Double>>> splitData(List<Instance<Double, Double>> data, double sliderValue) {
         List<Instance<Double, Double>> positives = new ArrayList<>();
         List<Instance<Double, Double>> negatives = new ArrayList<>();
@@ -255,9 +267,6 @@ public class gui extends Application {
                 negatives.add(instance);
             }
         }
-
-        Collections.shuffle(positives);
-        Collections.shuffle(negatives);
 
         double splitRatio = sliderValue / 100.0;
         int splitPositiveIndex = (int) (positives.size() * splitRatio);
@@ -271,6 +280,10 @@ public class gui extends Application {
         testSet.addAll(positives.subList(splitPositiveIndex, positives.size()));
         testSet.addAll(negatives.subList(splitNegativeIndex, negatives.size()));
 
+        long sortSeed = 42;
+        Collections.shuffle(trainSet, new Random(sortSeed));
+        Collections.shuffle(testSet, new Random(sortSeed));
+        
         return new Pair<>(trainSet, testSet);
     }
 
@@ -288,7 +301,7 @@ public class gui extends Application {
                 if (learningRateTextField.getText().isEmpty()) {
                     throw new RuntimeException("Learning rate cannot be empty");
                 }
-                
+
                 try {
                     epochs = Integer.parseInt(epochsTextField.getText().trim());
                 } catch (NumberFormatException e) {
