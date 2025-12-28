@@ -53,8 +53,8 @@ public class gui extends Application {
             Screen screen = Screen.getPrimary();
             Rectangle2D bounds = screen.getVisualBounds();
 
-            stage.setWidth(bounds.getWidth() * 0.80);
-            stage.setHeight(bounds.getHeight() * 0.85);
+            stage.setWidth(bounds.getWidth() * 0.85);
+            stage.setHeight(bounds.getHeight() * 0.95);
 
             VBox leftPane = createLeftPane();
             VBox middlePane = createMiddlePane();
